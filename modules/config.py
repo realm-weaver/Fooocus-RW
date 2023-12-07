@@ -238,6 +238,11 @@ default_performance = get_config_item_or_set_default(
     default_value='Speed',
     validator=lambda x: x in modules.flags.performance_selections
 )
+default_custom_steps = get_config_item_or_set_default(
+    key='custom_steps',
+    default_value=15,
+    validator=lambda x: isinstance(x, int) and x > 0
+)
 default_advanced_checkbox = get_config_item_or_set_default(
     key='default_advanced_checkbox',
     default_value=False,

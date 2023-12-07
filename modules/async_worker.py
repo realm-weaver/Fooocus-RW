@@ -122,6 +122,7 @@ def worker():
         negative_prompt = args.pop()
         style_selections = args.pop()
         performance_selection = args.pop()
+        custom_steps = args.pop()
         aspect_ratios_selection = args.pop()
         image_number = args.pop()
         image_seed = args.pop()
@@ -165,7 +166,7 @@ def worker():
             print(f'Refiner disabled because base model and refiner are same.')
             refiner_model_name = 'None'
 
-        assert performance_selection in ['Speed', 'Quality', 'Extreme Speed']
+        assert performance_selection in ['Speed', 'Quality', 'Extreme Speed', 'Custom']
 
         steps = 30
 
@@ -194,6 +195,11 @@ def worker():
             modules.patch.negative_adm_scale = advanced_parameters.adm_scaler_negative = 1.0
             modules.patch.adm_scaler_end = advanced_parameters.adm_scaler_end = 0.0
             steps = 8
+
+        if performance_selection == 'Custom':
+            assert custom_steps > 0
+            steps = custom_steps
+
 
         modules.patch.adaptive_cfg = advanced_parameters.adaptive_cfg
         print(f'[Parameters] Adaptive CFG = {modules.patch.adaptive_cfg}')

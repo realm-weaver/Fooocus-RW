@@ -210,6 +210,7 @@ with shared.gradio_root:
                 performance_selection = gr.Radio(label='Performance',
                                                  choices=modules.flags.performance_selections,
                                                  value=modules.config.default_performance)
+                custom_steps = gr.Slider(label='Custom Steps', minimum=1, maximum=256, step=1, value=modules.config.default_custom_steps)
                 aspect_ratios_selection = gr.Radio(label='Aspect Ratios', choices=modules.config.available_aspect_ratios,
                                                    value=modules.config.default_aspect_ratio, info='width × height',
                                                    elem_classes='aspect_ratios')
@@ -490,7 +491,7 @@ with shared.gradio_root:
 
         ctrls = [
             prompt, negative_prompt, style_selections,
-            performance_selection, aspect_ratios_selection, image_number, image_seed, sharpness, guidance_scale
+            performance_selection, custom_steps, aspect_ratios_selection, image_number, image_seed, sharpness, guidance_scale
         ]
 
         ctrls += [base_model, refiner_model, refiner_switch] + lora_ctrls
