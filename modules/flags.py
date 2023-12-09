@@ -34,6 +34,8 @@ default_parameters = {
 
 inpaint_engine_versions = ['None', 'v1', 'v2.5', 'v2.6']
 performance_selections = ['Speed', 'Quality', 'Extreme Speed', 'Custom']
+batch_dimensions = ['None', 'Iteration Steps', 'Refine Switch', 'LoRA Weight']
+batch_lora_ids = [('LoRA ' + str(x)) for x in range(1, 6)]
 
 inpaint_option_default = 'Inpaint or Outpaint (default)'
 inpaint_option_detail = 'Improve Detail (face, hand, eyes, etc.)'

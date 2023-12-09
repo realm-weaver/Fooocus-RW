@@ -210,7 +210,8 @@ with shared.gradio_root:
                 performance_selection = gr.Radio(label='Performance',
                                                  choices=modules.flags.performance_selections,
                                                  value=modules.config.default_performance)
-                custom_steps = gr.Slider(label='Custom Steps', minimum=1, maximum=256, step=1, value=modules.config.default_custom_steps)
+                custom_steps = gr.Slider(label='Custom Steps', visible=modules.config.default_performance == 'Custom', minimum=1, maximum=256, step=1, value=modules.config.default_custom_steps)
+
                 aspect_ratios_selection = gr.Radio(label='Aspect Ratios', choices=modules.config.available_aspect_ratios,
                                                    value=modules.config.default_aspect_ratio, info='width × height',
                                                    elem_classes='aspect_ratios')
@@ -219,8 +220,9 @@ with shared.gradio_root:
                                              info='Describing what you do not want to see.', lines=2,
                                              elem_id='negative_prompt',
                                              value=modules.config.default_prompt_negative)
-                seed_random = gr.Checkbox(label='Random', value=True)
-                image_seed = gr.Textbox(label='Seed', value=0, max_lines=1, visible=False) # workaround for https://github.com/gradio-app/gradio/issues/5354
+
+                seed_random = gr.Checkbox(label='Random', value=modules.config.default_seed_random)
+                image_seed = gr.Textbox(label='Seed', value=0, max_lines=1, visible=not modules.config.default_seed_random)
 
                 def random_checked(r):
                     return gr.update(visible=not r)
@@ -306,6 +308,7 @@ with shared.gradio_root:
 
                 with gr.Row():
                     model_refresh = gr.Button(label='Refresh', value='\U0001f504 Refresh All Files', variant='secondary', elem_classes='refresh_button')
+            
             with gr.Tab(label='Advanced'):
                 guidance_scale = gr.Slider(label='Guidance Scale', minimum=1.0, maximum=30.0, step=0.01,
                                            value=modules.config.default_cfg_scale,
@@ -319,12 +322,11 @@ with shared.gradio_root:
                 with gr.Column(visible=False) as dev_tools:
                     with gr.Tab(label='Debug Tools'):
                         adm_scaler_positive = gr.Slider(label='Positive ADM Guidance Scaler', minimum=0.1, maximum=3.0,
-                                                        step=0.001, value=1.5, info='The scaler multiplied to positive ADM (use 1.0 to disable). ')
+                                                        step=0.001, value=modules.config.default_positive_adm, info='The scaler multiplied to positive ADM (use 1.0 to disable). ')
                         adm_scaler_negative = gr.Slider(label='Negative ADM Guidance Scaler', minimum=0.1, maximum=3.0,
-                                                        step=0.001, value=0.8, info='The scaler multiplied to negative ADM (use 1.0 to disable). ')
+                                                        step=0.001, value=modules.config.default_negative_adm, info='The scaler multiplied to negative ADM (use 1.0 to disable). ')
                         adm_scaler_end = gr.Slider(label='ADM Guidance End At Step', minimum=0.0, maximum=1.0,
-                                                   step=0.001, value=0.3,
-                                                   info='When to end the guidance from positive/negative ADM. ')
+                                                        step=0.001, value=modules.config.default_adm_end, info='When to end the guidance from positive/negative ADM. ')
 
                         refiner_swap_method = gr.Dropdown(label='Refiner swap method', value='joint',
                                                           choices=['joint', 'separate', 'vae'])
@@ -444,12 +446,67 @@ with shared.gradio_root:
                 model_refresh.click(model_refresh_clicked, [], [base_model, refiner_model] + lora_ctrls,
                                     queue=False, show_progress=False)
 
-        performance_selection.change(lambda x: [gr.update(interactive=x != 'Extreme Speed')] * 11,
-                                     inputs=performance_selection,
-                                     outputs=[
+            with gr.Tab(label='Batch'):
+                batch_dimension = gr.Dropdown(label='Batch Dimension', choices=modules.flags.batch_dimensions, value=modules.config.batch_dimension, show_label=True)
+
+                # Iteration Steps batch handles
+                batch_iter_start = gr.Slider(label='Start', minimum=1, maximum=255, step=1,
+                                           value=modules.config.batch_iter_start, visible=modules.config.batch_dimension == 'Iteration Steps')
+                batch_iter_count = gr.Slider(label='Count', minimum=2, maximum=256, step=1,
+                                           value=modules.config.batch_iter_count, visible=modules.config.batch_dimension == 'Iteration Steps')
+                batch_iter_step = gr.Slider(label='Step', minimum=1, maximum=255, step=1,
+                                           value=modules.config.batch_iter_step, visible=modules.config.batch_dimension == 'Iteration Steps')
+
+                # Refine Switch batch handles
+                batch_refine_start = gr.Slider(label='Start', minimum=0.1, maximum=1.0, step=0.0001,
+                                           value=modules.config.batch_refine_start, visible=modules.config.batch_dimension == 'Refine Switch')
+                batch_refine_end = gr.Slider(label='End', minimum=0.1, maximum=1.0, step=0.0001,
+                                           value=modules.config.batch_refine_end, visible=modules.config.batch_dimension == 'Refine Switch')
+                batch_refine_count = gr.Slider(label='Count', minimum=2, maximum=101, step=1,
+                                           value=modules.config.batch_refine_count, visible=modules.config.batch_dimension == 'Refine Switch')
+
+                # LoRA batch handles
+                batch_lora_id = gr.Dropdown(label='LoRA ID', choices=modules.flags.batch_lora_ids,
+                                           value=modules.config.batch_lora_id,visible=modules.config.batch_dimension == 'LoRA Weight', show_label=True)
+                batch_lora_start = gr.Slider(label='Start', minimum=-2.0, maximum=2.0, step=0.0001,
+                                           value=modules.config.batch_lora_start, visible=modules.config.batch_dimension == 'LoRA Weight')
+                batch_lora_end = gr.Slider(label='End', minimum=-2.0, maximum=2.0, step=0.0001,
+                                           value=modules.config.batch_lora_end, visible=modules.config.batch_dimension == 'LoRA Weight')
+                batch_lora_count = gr.Slider(label='Count', minimum=2, maximum=101, step=1,
+                                           value=modules.config.batch_lora_count, visible=modules.config.batch_dimension == 'LoRA Weight')
+            """
+            with gr.Tab(label='Presets'):
+                load_default_button = gr.Button(label="Load Default", value="default", elem_classes='type_row', elem_id='load_base_button', visible=True)
+                load_lcm_button = gr.Button(label="Load LCM", value="rw-lcm", elem_classes='type_row', elem_id='load_lcm_button', visible=True)
+
+                load_default_button.click(modules.config.reload_config_from_path, inputs=load_default_button)
+                load_lcm_button.click(modules.config.reload_config_from_path, inputs=load_lcm_button)
+            """
+
+        def batch_dimension_changed(x):
+            results = []
+            results += [gr.update(visible=x == 'Iteration Steps')] * 3
+            results += [gr.update(visible=x == 'Refine Switch')] * 3
+            results += [gr.update(visible=x == 'LoRA Weight')] * 4
+            return results
+
+        batch_dimension.change(batch_dimension_changed, inputs=[batch_dimension], outputs=[
+                                    batch_iter_start, batch_iter_count, batch_iter_step,
+                                    batch_refine_start, batch_refine_end, batch_refine_count,
+                                    batch_lora_id, batch_lora_start, batch_lora_end, batch_lora_count
+                                ], queue=False, show_progress=False)
+
+        def performance_selection_changed(x):
+            results = []
+            results += [gr.update(interactive=x != 'Extreme Speed')] * 11
+            results += [gr.update(visible=x == 'Custom')]
+            return results
+
+        performance_selection.change(performance_selection_changed, inputs=[performance_selection], outputs=[
                                          guidance_scale, sharpness, adm_scaler_end, adm_scaler_positive,
                                          adm_scaler_negative, refiner_switch, refiner_model, sampler_name,
-                                         scheduler_name, adaptive_cfg, refiner_swap_method
+                                         scheduler_name, adaptive_cfg, refiner_swap_method,
+                                         custom_steps
                                      ], queue=False, show_progress=False)
 
         advanced_checkbox.change(lambda x: gr.update(visible=x), advanced_checkbox, advanced_column,
@@ -498,6 +555,15 @@ with shared.gradio_root:
         ctrls += [input_image_checkbox, current_tab]
         ctrls += [uov_method, uov_input_image]
         ctrls += [outpaint_selections, inpaint_input_image, inpaint_additional_prompt]
+        
+        ctrls += [
+            batch_dimension,
+            batch_iter_start, batch_iter_count, batch_iter_step,
+            batch_refine_start, batch_refine_end, batch_refine_count,
+            batch_lora_id, batch_lora_start, batch_lora_end, batch_lora_count
+        ]
+        
+
         ctrls += ip_ctrls
 
         generate_button.click(lambda: (gr.update(visible=True, interactive=True), gr.update(visible=True, interactive=True), gr.update(visible=False), []), outputs=[stop_button, skip_button, generate_button, gallery]) \

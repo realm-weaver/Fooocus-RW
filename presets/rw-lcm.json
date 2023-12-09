@@ -1,0 +1,31 @@
+{
+    "default_model": "sdxl__juggernaut__v6_rd.safetensors",
+    "default_refiner": "None",
+    "default_refiner_switch": 0.5,
+    "default_loras": [
+        [ "sdxl__offset_example__v10.safetensors", 0.1 ],
+        [ "sdxl__lcm.safetensors", 1.0 ],
+        [ "None", 1.0 ],
+        [ "None", 1.0 ],
+        [ "None", 1.0 ]
+    ],
+    "default_cfg_scale": 1.0,
+    "default_sample_sharpness": 0.0,
+    "default_sampler": "lcm",
+    "default_scheduler": "lcm",
+    "default_performance": "Custom",
+    "default_styles": [
+        "Fooocus V2",
+        "Fooocus Masterpiece"
+    ],
+    "default_prompt_negative": "",
+    "default_prompt": "forest elf",
+    "custom_steps": 8,
+    "default_seed_random": false,
+    "default_advanced_checkbox": true,
+    "default_image_number": 1,
+    "default_aspect_ratio": "1024*1024",
+    "default_positive_adm": 1.0,
+    "default_negative_adm": 1.0,
+    "default_adm_end": 0.0
+}

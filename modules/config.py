@@ -10,8 +10,8 @@ from modules.model_loader import load_file_from_url
 from modules.util import get_files_from_folder
 
 
-config_path = os.path.abspath("./config.txt")
-config_example_path = os.path.abspath("config_modification_tutorial.txt")
+config_path = os.path.abspath("./config.json")
+config_example_path = os.path.abspath("config_modification_tutorial.json")
 config_dict = {}
 always_save_keys = []
 visited_keys = []
@@ -151,9 +151,25 @@ def get_config_item_or_set_default(key, default_value, validator, disable_empty_
         return default_value
 
 
+"""
+def reload_config_from_path(path):
+    if isinstance(path, str):
+        preset_path = os.path.abspath(f'./presets/{path}.json')
+        try:
+            if os.path.exists(preset_path):
+                with open(preset_path, "r", encoding="utf-8") as json_file:
+                    config_dict.update(json.load(json_file))
+                    print(f'Loaded preset: {preset_path}')
+            else:
+                raise FileNotFoundError
+        except Exception as e:
+            print(f'Load preset [{preset_path}] failed')
+            print(e)
+"""
+
 default_base_model_name = get_config_item_or_set_default(
     key='default_model',
-    default_value='juggernautXL_version6Rundiffusion.safetensors',
+    default_value='sdxl__juggernaut__v6_rd.safetensors',
     validator=lambda x: isinstance(x, str)
 )
 default_refiner_model_name = get_config_item_or_set_default(
@@ -170,7 +186,7 @@ default_loras = get_config_item_or_set_default(
     key='default_loras',
     default_value=[
         [
-            "sd_xl_offset_example-lora_1.0.safetensors",
+            "sdxl__offset_example__v10.safetensors",
             0.1
         ],
         [
@@ -235,13 +251,13 @@ default_prompt = get_config_item_or_set_default(
 )
 default_performance = get_config_item_or_set_default(
     key='default_performance',
-    default_value='Speed',
+    default_value='Extreme Speed',
     validator=lambda x: x in modules.flags.performance_selections
 )
-default_custom_steps = get_config_item_or_set_default(
-    key='custom_steps',
-    default_value=15,
-    validator=lambda x: isinstance(x, int) and x > 0
+default_seed_random = get_config_item_or_set_default(
+    key='default_seed_random',
+    default_value=True,
+    validator=lambda x: isinstance(x, bool)
 )
 default_advanced_checkbox = get_config_item_or_set_default(
     key='default_advanced_checkbox',
@@ -256,14 +272,15 @@ default_image_number = get_config_item_or_set_default(
 checkpoint_downloads = get_config_item_or_set_default(
     key='checkpoint_downloads',
     default_value={
-        "juggernautXL_version6Rundiffusion.safetensors": "https://huggingface.co/lllyasviel/fav_models/resolve/main/fav/juggernautXL_version6Rundiffusion.safetensors"
+        "sdxl__juggernaut__v6_rd.safetensors": "https://huggingface.co/lllyasviel/fav_models/resolve/main/fav/juggernautXL_version6Rundiffusion.safetensors"
     },
     validator=lambda x: isinstance(x, dict) and all(isinstance(k, str) and isinstance(v, str) for k, v in x.items())
 )
 lora_downloads = get_config_item_or_set_default(
     key='lora_downloads',
     default_value={
-        "sd_xl_offset_example-lora_1.0.safetensors": "https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0/resolve/main/sd_xl_offset_example-lora_1.0.safetensors"
+        "sdxl__offset_example__v10.safetensors": "https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0/resolve/main/sd_xl_offset_example-lora_1.0.safetensors",
+        "sdxl__lcm.safetensors": "https://huggingface.co/lllyasviel/misc/resolve/77d5f4789b6f5c36180375ea3f789140fc8ca001/sdxl_lcm_lora.safetensors"
     },
     validator=lambda x: isinstance(x, dict) and all(isinstance(k, str) and isinstance(v, str) for k, v in x.items())
 )
@@ -315,6 +332,95 @@ example_inpaint_prompts = get_config_item_or_set_default(
     ],
     validator=lambda x: isinstance(x, list) and all(isinstance(v, str) for v in x)
 )
+
+
+
+default_custom_steps = get_config_item_or_set_default(
+    key='custom_steps',
+    default_value=8,
+    validator=lambda x: isinstance(x, int) and x > 0
+)
+
+
+
+default_positive_adm = get_config_item_or_set_default(
+    key='default_positive_adm',
+    default_value=1.5,
+    validator=lambda x: isinstance(x, float) and 0.1 <=  x <= 3.0
+)
+default_negative_adm = get_config_item_or_set_default(
+    key='default_negative_adm',
+    default_value=0.8,
+    validator=lambda x: isinstance(x, float) and 0.1 <= x <= 3.0
+)
+default_adm_end = get_config_item_or_set_default(
+    key='default_adm_end',
+    default_value=0.3,
+    validator=lambda x: isinstance(x, float) and 0.0 <= x <= 1.0
+)
+
+
+
+batch_dimension = get_config_item_or_set_default(
+    key='batch_dimension',
+    default_value='None',
+    validator=lambda x: x in modules.flags.batch_dimensions
+)
+
+batch_iter_start = get_config_item_or_set_default(
+    key='batch_iter_start',
+    default_value=1,
+    validator=lambda x: isinstance(x, int) and x > 0
+)
+batch_iter_count = get_config_item_or_set_default(
+    key='batch_iter_count',
+    default_value=32,
+    validator=lambda x: isinstance(x, int) and x > 0
+)
+batch_iter_step = get_config_item_or_set_default(
+    key='batch_iter_step',
+    default_value=1,
+    validator=lambda x: isinstance(x, int) and x < 1
+)
+
+batch_refine_start = get_config_item_or_set_default(
+    key='batch_refine_start',
+    default_value=0.1,
+    validator=lambda x: isinstance(x, float) and x >= 0.1
+)
+batch_refine_end = get_config_item_or_set_default(
+    key='batch_refine_end',
+    default_value=1.0,
+    validator=lambda x: isinstance(x, float) and x < 1.0
+)
+batch_refine_count = get_config_item_or_set_default(
+    key='batch_refine_count',
+    default_value=10,
+    validator=lambda x: isinstance(x, int) and x > 1
+)
+
+batch_lora_id = get_config_item_or_set_default(
+    key='batch_lora_id',
+    default_value='LoRA 1',
+    validator=lambda x: x in modules.flags.batch_lora_ids
+)
+batch_lora_start = get_config_item_or_set_default(
+    key='batch_lora_start',
+    default_value=-2.0,
+    validator=lambda x: isinstance(x, float) and x >= 0.1
+)
+batch_lora_end = get_config_item_or_set_default(
+    key='batch_lora_end',
+    default_value=2.0,
+    validator=lambda x: isinstance(x, float) and x < 1.0
+)
+batch_lora_count = get_config_item_or_set_default(
+    key='batch_lora_count',
+    default_value=11,
+    validator=lambda x: isinstance(x, int) and x > 1
+)
+
+
 
 example_inpaint_prompts = [[x] for x in example_inpaint_prompts]
 

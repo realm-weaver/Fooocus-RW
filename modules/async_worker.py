@@ -139,6 +139,19 @@ def worker():
         outpaint_selections = args.pop()
         inpaint_input_image = args.pop()
         inpaint_additional_prompt = args.pop()
+        
+        batch_dimension = args.pop()
+        batch_iter_start = args.pop()
+        batch_iter_count = args.pop()
+        batch_iter_step = args.pop()
+        batch_refine_start = args.pop()
+        batch_refine_end = args.pop()
+        batch_refine_count = args.pop()
+        batch_lora_id = args.pop()
+        batch_lora_start = args.pop()
+        batch_lora_end = args.pop()
+        batch_lora_count = args.pop()
+        
 
         cn_tasks = {x: [] for x in flags.ip_list}
         for _ in range(4):
@@ -166,7 +179,7 @@ def worker():
             print(f'Refiner disabled because base model and refiner are same.')
             refiner_model_name = 'None'
 
-        assert performance_selection in ['Speed', 'Quality', 'Extreme Speed', 'Custom']
+        assert performance_selection in modules.flags.performance_selections
 
         steps = 30
 
@@ -197,7 +210,6 @@ def worker():
             steps = 8
 
         if performance_selection == 'Custom':
-            assert custom_steps > 0
             steps = custom_steps
 
 
@@ -271,6 +283,9 @@ def worker():
 
                         if performance_selection == 'Extreme Speed':
                             steps = 8
+
+                        if performance_selection == 'Custom':
+                            steps = custom_steps
 
                     progressbar(async_task, 1, 'Downloading upscale models ...')
                     modules.config.downloading_upscale_model()
@@ -363,48 +378,95 @@ def worker():
 
             progressbar(async_task, 3, 'Processing prompts ...')
             tasks = []
-            for i in range(image_number):
-                task_seed = (seed + i) % (constants.MAX_SEED + 1)  # randint is inclusive, % is not
-                task_rng = random.Random(task_seed)  # may bind to inpaint noise in the future
+            batch_start = None
+            batch_step = None
+            batch_count = 1
+            saved_seed = seed
+            if batch_dimension == 'Iteration Steps':
+                batch_start = batch_iter_start
+                batch_count = batch_iter_count
+                batch_step = batch_iter_step
+            if batch_dimension == 'Refine Switch' and batch_refine_start != batch_refine_end:
+                if batch_refine_end < batch_refine_start:
+                    batch_refine_temp = batch_refine_start
+                    batch_refine_start = batch_refine_end
+                    batch_refine_end = batch_refine_temp
+                batch_start = batch_refine_start
+                batch_count = batch_refine_count
+                batch_step = (batch_refine_end - batch_refine_start) / (batch_refine_count - 1)
+            if batch_dimension == 'LoRA Weight' and batch_lora_start != batch_lora_end:
+                if batch_lora_end < batch_lora_start:
+                    batch_lora_temp = batch_lora_start
+                    batch_lora_start = batch_lora_end
+                    batch_lora_end = batch_lora_temp
+                batch_start = batch_lora_start
+                batch_count = batch_lora_count
+                batch_step = (batch_lora_end - batch_lora_start) / (batch_lora_count - 1)
+            batch_lora_id_num = int(batch_lora_id[5]) - 1
 
-                task_prompt = apply_wildcards(prompt, task_rng)
-                task_negative_prompt = apply_wildcards(negative_prompt, task_rng)
-                task_extra_positive_prompts = [apply_wildcards(pmt, task_rng) for pmt in extra_positive_prompts]
-                task_extra_negative_prompts = [apply_wildcards(pmt, task_rng) for pmt in extra_negative_prompts]
 
-                positive_basic_workloads = []
-                negative_basic_workloads = []
 
-                if use_style:
-                    for s in style_selections:
-                        p, n = apply_style(s, positive=task_prompt)
-                        positive_basic_workloads = positive_basic_workloads + p
-                        negative_basic_workloads = negative_basic_workloads + n
-                else:
-                    positive_basic_workloads.append(task_prompt)
+            for batchID in range(batch_count):
+                batch_task = dict()
+                batch_task['steps'] = steps
+                batch_task['switch'] = switch
+                if batch_count > 1:
+                    batch_value = batch_start + batchID * batch_step
+                    if batch_dimension == 'Iteration Steps':
+                        batch_task['steps'] = batch_value
+                    elif batch_dimension == 'Refine Switch':
+                        batch_task['switch'] = int(round(steps * batch_value))
+                    elif batch_dimension == 'LoRA Weight':
+                        batch_task['lora_weight'] = batch_value
 
-                negative_basic_workloads.append(task_negative_prompt)  # Always use independent workload for negative.
 
-                positive_basic_workloads = positive_basic_workloads + task_extra_positive_prompts
-                negative_basic_workloads = negative_basic_workloads + task_extra_negative_prompts
+                for i in range(image_number):
+                    task_seed = (seed + i) % (constants.MAX_SEED + 1)  # randint is inclusive, % is not
+                    task_rng = random.Random(task_seed)  # may bind to inpaint noise in the future
 
-                positive_basic_workloads = remove_empty_str(positive_basic_workloads, default=task_prompt)
-                negative_basic_workloads = remove_empty_str(negative_basic_workloads, default=task_negative_prompt)
+                    task_prompt = apply_wildcards(prompt, task_rng)
+                    task_negative_prompt = apply_wildcards(negative_prompt, task_rng)
+                    task_extra_positive_prompts = [apply_wildcards(pmt, task_rng) for pmt in extra_positive_prompts]
+                    task_extra_negative_prompts = [apply_wildcards(pmt, task_rng) for pmt in extra_negative_prompts]
 
-                tasks.append(dict(
-                    task_seed=task_seed,
-                    task_prompt=task_prompt,
-                    task_negative_prompt=task_negative_prompt,
-                    positive=positive_basic_workloads,
-                    negative=negative_basic_workloads,
-                    expansion='',
-                    c=None,
-                    uc=None,
-                    positive_top_k=len(positive_basic_workloads),
-                    negative_top_k=len(negative_basic_workloads),
-                    log_positive_prompt='; '.join([task_prompt] + task_extra_positive_prompts),
-                    log_negative_prompt='; '.join([task_negative_prompt] + task_extra_negative_prompts),
-                ))
+                    positive_basic_workloads = []
+                    negative_basic_workloads = []
+
+                    if use_style:
+                        for s in style_selections:
+                            p, n = apply_style(s, positive=task_prompt)
+                            positive_basic_workloads = positive_basic_workloads + p
+                            negative_basic_workloads = negative_basic_workloads + n
+                    else:
+                        positive_basic_workloads.append(task_prompt)
+
+                    negative_basic_workloads.append(task_negative_prompt)  # Always use independent workload for negative.
+
+                    positive_basic_workloads = positive_basic_workloads + task_extra_positive_prompts
+                    negative_basic_workloads = negative_basic_workloads + task_extra_negative_prompts
+
+                    positive_basic_workloads = remove_empty_str(positive_basic_workloads, default=task_prompt)
+                    negative_basic_workloads = remove_empty_str(negative_basic_workloads, default=task_negative_prompt)
+
+                    task = dict(
+                        task_seed=task_seed,
+                        task_prompt=task_prompt,
+                        task_negative_prompt=task_negative_prompt,
+                        positive=positive_basic_workloads,
+                        negative=negative_basic_workloads,
+                        expansion='',
+                        c=None,
+                        uc=None,
+                        positive_top_k=len(positive_basic_workloads),
+                        negative_top_k=len(negative_basic_workloads),
+                        log_positive_prompt='; '.join([task_prompt] + task_extra_positive_prompts),
+                        log_negative_prompt='; '.join([task_negative_prompt] + task_extra_negative_prompts),
+                    )
+                    task.update(batch_task)
+
+                    tasks.append(task)
+
+                seed = saved_seed
 
             if use_expansion:
                 for i, t in enumerate(tasks):
@@ -682,7 +744,7 @@ def worker():
                 advanced_parameters.freeu_s2
             )
 
-        all_steps = steps * image_number
+        all_steps = steps * image_number * batch_count
 
         print(f'[Parameters] Denoising Strength = {denoising_strength}')
 
@@ -738,11 +800,18 @@ def worker():
                                 positive_cond, negative_cond,
                                 pipeline.loaded_ControlNets[cn_path], cn_img, cn_weight, 0, cn_stop)
 
+
+                if batch_dimension == 'LoRA Weight':
+                    loras[batch_lora_id_num][1] = task['lora_weight']
+                    pipeline.refresh_everything(refiner_model_name=refiner_model_name, base_model_name=base_model_name,
+                                                loras=loras, base_model_additional_loras=base_model_additional_loras,
+                                                use_synthetic_refiner=use_synthetic_refiner)
+                
                 imgs = pipeline.process_diffusion(
                     positive_cond=positive_cond,
                     negative_cond=negative_cond,
-                    steps=steps,
-                    switch=switch,
+                    steps=task['steps'],
+                    switch=task['switch'],
                     width=width,
                     height=height,
                     image_seed=task['task_seed'],
@@ -767,7 +836,7 @@ def worker():
                         ('Negative Prompt', task['log_negative_prompt']),
                         ('Fooocus V2 Expansion', task['expansion']),
                         ('Styles', str(raw_style_selections)),
-                        ('Performance', performance_selection),
+                        ('Performance', performance_selection + ' ( ' + str(task['steps']) + ' )'),
                         ('Resolution', str((width, height))),
                         ('Sharpness', sharpness),
                         ('Guidance Scale', guidance_scale),
